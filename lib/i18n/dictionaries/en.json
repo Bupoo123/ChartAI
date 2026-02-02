@@ -53,7 +53,9 @@
         "clickToEdit": "Click to edit",
         "editMessage": "Edit message",
         "saveAndSubmit": "Save & Submit",
-        "ExtractURL": "Extract from URL"
+        "ExtractURL": "Extract from URL",
+        "downloadInputTemplate": "Download input template",
+        "inputTemplateHint": "Follow the template to avoid special character errors"
     },
     "examples": {
         "title": "Create diagrams with AI",
@@ -132,7 +134,8 @@
         "formats": {
             "drawio": "Draw.io XML",
             "png": "PNG Image",
-            "svg": "SVG Image"
+            "svg": "SVG Image",
+            "vsdx": "Visio (.vsdx)"
         },
         "savedSuccessfully": "Saved successfully!"
     },

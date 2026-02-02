@@ -2,6 +2,7 @@
 
 import {
     Download,
+    FileText,
     History,
     Image as ImageIcon,
     Link,
@@ -30,6 +31,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { UrlInputDialog } from "@/components/url-input-dialog"
 import { useDiagram } from "@/contexts/diagram-context"
 import { useDictionary } from "@/hooks/use-dictionary"
+import { getAssetUrl } from "@/lib/base-path"
 import { formatMessage } from "@/lib/i18n/utils"
 import { isPdfFile, isTextFile } from "@/lib/pdf-utils"
 import { STORAGE_KEYS } from "@/lib/storage"
@@ -483,6 +485,25 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(
 
                     <div className="flex items-center justify-end gap-1 px-3 py-2 border-t border-border/50">
                         <div className="flex items-center gap-1 overflow-x-hidden">
+                            <ButtonWithTooltip
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => {
+                                    const a = document.createElement("a")
+                                    a.href = getAssetUrl(
+                                        "/diagram-input-template.md",
+                                    )
+                                    a.download = "diagram-input-template.md"
+                                    a.rel = "noopener noreferrer"
+                                    a.click()
+                                }}
+                                tooltipContent={`${dict.chat.downloadInputTemplate}（${dict.chat.inputTemplateHint}）`}
+                                className="h-8 w-8 p-0 text-muted-foreground hover:text-foreground"
+                                aria-label={dict.chat.downloadInputTemplate}
+                            >
+                                <FileText className="h-4 w-4" />
+                            </ButtonWithTooltip>
                             <ButtonWithTooltip
                                 type="button"
                                 variant="ghost"

@@ -46,6 +46,8 @@
 }
 
 :root {
+    --font-sans: "Plus Jakarta Sans", ui-sans-serif, system-ui, sans-serif;
+    --font-mono: "JetBrains Mono", ui-monospace, monospace;
     --radius: 0.75rem;
 
     /* Clean Light Modern Palette */

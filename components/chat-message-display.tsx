@@ -36,6 +36,7 @@ import { useDictionary } from "@/hooks/use-dictionary"
 import { getApiEndpoint } from "@/lib/base-path"
 import {
     applyDiagramOperations,
+    autoFixXml,
     convertToLegalXml,
     extractCompleteMxCells,
     replaceNodes,
@@ -347,11 +348,15 @@ export function ChatMessageDisplay({
 
             const convertedXml = convertToLegalXml(currentXml)
             if (convertedXml !== previousXML.current) {
+                // Pre-check: fix XML (escape &, <, > etc.) BEFORE parse and draw
+                const { fixed: fixedFragment } = autoFixXml(convertedXml)
+                const xmlToUse = fixedFragment || convertedXml
+
                 // Parse and validate XML BEFORE calling replaceNodes
                 const parser = new DOMParser()
                 // Wrap in root element for parsing multiple mxCell elements
                 const testDoc = parser.parseFromString(
-                    `<root>${convertedXml}</root>`,
+                    `<root>${xmlToUse}</root>`,
                     "text/xml",
                 )
                 const parseError = testDoc.querySelector("parsererror")
@@ -370,21 +375,21 @@ export function ChatMessageDisplay({
                     const baseXML =
                         chartXML ||
                         `<mxfile><diagram name="Page-1" id="page-1"><mxGraphModel><root><mxCell id="0"/><mxCell id="1" parent="0"/></root></mxGraphModel></diagram></mxfile>`
-                    const replacedXML = replaceNodes(baseXML, convertedXml)
+                    const replacedXML = replaceNodes(baseXML, xmlToUse)
 
                     // During streaming (showToast=false), skip heavy validation for lower latency
                     // The quick DOM parse check above catches malformed XML
                     // Full validation runs on final output (showToast=true)
                     if (!showToast) {
-                        previousXML.current = convertedXml
+                        previousXML.current = xmlToUse
                         onDisplayChart(replacedXML, true)
                         return
                     }
 
-                    // Final output: run full validation and auto-fix
+                    // Final output: run full validation and auto-fix again on full XML
                     const validation = validateAndFixXml(replacedXML)
                     if (validation.valid) {
-                        previousXML.current = convertedXml
+                        previousXML.current = xmlToUse
                         // Use fixed XML if available, otherwise use original
                         const xmlToLoad = validation.fixed || replacedXML
                         onDisplayChart(xmlToLoad, true)

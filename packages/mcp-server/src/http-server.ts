@@ -616,6 +616,7 @@ function getHtmlPage(sessionId: string): string {
                         <option value="drawio">Draw.io (.drawio)</option>
                         <option value="png">PNG Image (.png)</option>
                         <option value="svg">SVG Vector (.svg)</option>
+                        <option value="vsdx">Visio (.vsdx)</option>
                     </select>
                 </div>
                 <div class="form-group">
@@ -653,14 +654,18 @@ function getHtmlPage(sessionId: string): string {
                     // Fallback if export doesn't respond
                     setTimeout(() => { if (pendingSvgExport === msg.xml) { pushState(msg.xml, ''); pendingSvgExport = null; } }, 2000);
                 } else if (msg.event === 'export' && msg.data) {
-                    // Handle file download export (PNG/SVG only, drawio uses lastXml directly)
-                    if (pendingDownload && (pendingDownload.format === 'png' || pendingDownload.format === 'svg')) {
+                    // Handle file download export (PNG/SVG/VSDX only, drawio uses lastXml directly)
+                    if (pendingDownload && (pendingDownload.format === 'png' || pendingDownload.format === 'svg' || pendingDownload.format === 'vsdx')) {
                         const dl = pendingDownload;
                         pendingDownload = null;
                         let dataUrl = msg.data;
                         if (!dataUrl.startsWith('data:')) {
-                            const mime = dl.format === 'png' ? 'image/png' : 'image/svg+xml';
-                            dataUrl = 'data:' + mime + ';base64,' + btoa(unescape(encodeURIComponent(msg.data)));
+                            if (dl.format === 'png' || dl.format === 'svg') {
+                                const mime = dl.format === 'png' ? 'image/png' : 'image/svg+xml';
+                                dataUrl = 'data:' + mime + ';base64,' + btoa(unescape(encodeURIComponent(msg.data)));
+                            } else {
+                                dataUrl = 'data:application/vnd.ms-visio.drawing;base64,' + msg.data;
+                            }
                         }
                         const a = document.createElement('a');
                         a.href = dataUrl; a.download = dl.filename;
@@ -752,7 +757,7 @@ function getHtmlPage(sessionId: string): string {
         const saveConfirmBtn = document.getElementById('save-confirm-btn');
         let pendingDownload = null;
 
-        const extMap = { drawio: '.drawio', png: '.png', svg: '.svg' };
+        const extMap = { drawio: '.drawio', png: '.png', svg: '.svg', vsdx: '.vsdx' };
 
         saveBtn.onclick = () => {
             if (!sessionId || !isReady) return;
@@ -796,6 +801,10 @@ function getHtmlPage(sessionId: string): string {
             } else if (format === 'svg') {
                 pendingDownload = { format: 'svg', filename };
                 iframe.contentWindow.postMessage(JSON.stringify({ action: 'export', format: 'svg' }), '*');
+                setTimeout(() => { saveConfirmBtn.disabled = false; saveConfirmBtn.textContent = 'Save'; pendingDownload = null; }, 5000);
+            } else if (format === 'vsdx') {
+                pendingDownload = { format: 'vsdx', filename };
+                iframe.contentWindow.postMessage(JSON.stringify({ action: 'export', format: 'vsdx' }), '*');
                 setTimeout(() => { saveConfirmBtn.disabled = false; saveConfirmBtn.textContent = 'Save'; pendingDownload = null; }, 5000);
             }
         };

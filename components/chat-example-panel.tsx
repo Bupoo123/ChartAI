@@ -221,6 +221,18 @@ export default function ExamplePanel({
                 <p className="text-[11px] text-muted-foreground/60 text-center mt-4">
                     {dict.examples.cachedNote}
                 </p>
+                <p className="text-[11px] text-muted-foreground/80 text-center mt-2">
+                    <a
+                        href={getAssetUrl("/diagram-input-template.md")}
+                        download="diagram-input-template.md"
+                        rel="noopener noreferrer"
+                        className="text-primary hover:underline"
+                    >
+                        {dict.chat.downloadInputTemplate}
+                    </a>
+                    {" · "}
+                    {dict.chat.inputTemplateHint}
+                </p>
             </div>
         </div>
     )

@@ -234,7 +234,7 @@ export function DiagramProvider({ children }: { children: React.ReactNode }) {
             saveResolverRef.current = { resolver: null, format: null }
             // For non-xmlsvg formats, skip XML extraction as it will fail
             // Only drawio (which uses xmlsvg internally) has the content attribute
-            if (format === "png" || format === "svg") {
+            if (format === "png" || format === "svg" || format === "vsdx") {
                 return
             }
         }
@@ -311,6 +311,26 @@ export function DiagramProvider({ children }: { children: React.ReactNode }) {
                     fileContent = exportData
                     mimeType = "image/png"
                     extension = ".png"
+                } else if (format === "vsdx") {
+                    mimeType = "application/vnd.ms-visio.drawing"
+                    extension = ".vsdx"
+                    if (exportData.startsWith("data:")) {
+                        fileContent = exportData
+                    } else {
+                        const base64 = exportData.trim()
+                        let blob: Blob | null = null
+                        try {
+                            const binary = atob(base64)
+                            const bytes = new Uint8Array(binary.length)
+                            for (let i = 0; i < binary.length; i += 1) {
+                                bytes[i] = binary.charCodeAt(i)
+                            }
+                            blob = new Blob([bytes], { type: mimeType })
+                        } catch {
+                            blob = new Blob([exportData], { type: mimeType })
+                        }
+                        fileContent = blob
+                    }
                 } else {
                     // SVG format
                     fileContent = exportData
@@ -358,7 +378,12 @@ export function DiagramProvider({ children }: { children: React.ReactNode }) {
         }
 
         // Export diagram - callback will be handled in handleDiagramExport
-        drawioRef.current.exportDiagram({ format: drawioFormat })
+        // react-drawio ExportFormats type omits vsdx; draw.io embed supports it at runtime
+        ;(
+            drawioRef.current as {
+                exportDiagram: (opts: { format: string }) => void
+            }
+        ).exportDiagram({ format: drawioFormat })
     }
 
     // Log save event to Langfuse (just flags the trace, doesn't send content)

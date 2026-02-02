@@ -53,7 +53,9 @@
         "clickToEdit": "クリックして編集",
         "editMessage": "メッセージを編集",
         "saveAndSubmit": "保存して送信",
-        "ExtractURL": "URLから抽出"
+        "ExtractURL": "URLから抽出",
+        "downloadInputTemplate": "入力テンプレートをダウンロード",
+        "inputTemplateHint": "テンプレートに従うと特殊文字エラーを防げます"
     },
     "examples": {
         "title": "AI でダイアグラムを作成",
@@ -132,7 +134,8 @@
         "formats": {
             "drawio": "Draw.io XML",
             "png": "PNG 画像",
-            "svg": "SVG 画像"
+            "svg": "SVG 画像",
+            "vsdx": "Visio (.vsdx)"
         },
         "savedSuccessfully": "保存完了！"
     },

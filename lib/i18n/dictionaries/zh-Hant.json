@@ -53,7 +53,9 @@
         "clickToEdit": "點擊編輯",
         "editMessage": "編輯訊息",
         "saveAndSubmit": "儲存並提交",
-        "ExtractURL": "從 URL 擷取"
+        "ExtractURL": "從 URL 擷取",
+        "downloadInputTemplate": "下載輸入範本",
+        "inputTemplateHint": "依範本描述可避免特殊字元錯誤"
     },
     "examples": {
         "title": "用 AI 建立圖表",
@@ -132,7 +134,8 @@
         "formats": {
             "drawio": "Draw.io XML",
             "png": "PNG 圖片",
-            "svg": "SVG 圖片"
+            "svg": "SVG 圖片",
+            "vsdx": "Visio (.vsdx)"
         },
         "savedSuccessfully": "儲存成功！"
     },

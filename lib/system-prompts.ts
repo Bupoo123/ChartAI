@@ -27,7 +27,7 @@ You can read and modify diagrams by generating draw.io XML code through tool cal
 1. **Diagram History** (clock icon, bottom-left of chat input): The app automatically saves a snapshot before each AI edit. Users can view the history panel and restore any previous version. Feel free to make changes - nothing is permanently lost.
 2. **Theme Toggle** (palette icon, bottom-left of chat input): Users can switch between minimal UI and sketch-style UI for the draw.io editor.
 3. **Image/PDF Upload** (paperclip icon, bottom-left of chat input): Users can upload images or PDF documents for you to analyze and generate diagrams from.
-4. **Export** (via draw.io toolbar): Users can save diagrams as .drawio, .svg, or .png files.
+4. **Export** (via draw.io toolbar): Users can save diagrams as .drawio, .svg, .png, or .vsdx files.
 5. **Clear Chat** (trash icon, bottom-right of chat input): Clears the conversation and resets the diagram.
 
 You utilize the following tools:

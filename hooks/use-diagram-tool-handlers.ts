@@ -7,7 +7,7 @@ import type {
 } from "@/components/chat/ValidationCard"
 import type { ValidationResult } from "@/lib/diagram-validator"
 import { formatValidationFeedback } from "@/lib/diagram-validator"
-import { isMxCellXmlComplete, wrapWithMxFile } from "@/lib/utils"
+import { autoFixXml, isMxCellXmlComplete, wrapWithMxFile } from "@/lib/utils"
 
 const DEBUG = process.env.NODE_ENV === "development"
 
@@ -169,10 +169,10 @@ NEXT STEP: Call append_diagram with the continuation XML.
             return
         }
 
-        // Complete XML received - use it directly
-        // (continuation is now handled via append_diagram tool)
-        const finalXml = xml
+        // Complete XML received - validate and fix BEFORE drawing (escape &, <, > etc.)
         partialXmlRef.current = "" // Reset any partial from previous truncation
+        const { fixed: fixedXml } = autoFixXml(xml)
+        const finalXml = fixedXml || xml
 
         // Wrap raw XML with full mxfile structure for draw.io
         const fullXml = wrapWithMxFile(finalXml)
