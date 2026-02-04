@@ -490,12 +490,17 @@ ${userInputText}
 
     const allMessages = [...systemMessages, ...enhancedMessages]
 
+    const maxOutputTokensEnv = process.env.MAX_OUTPUT_TOKENS
+    const maxOutputTokens = maxOutputTokensEnv
+        ? parseInt(maxOutputTokensEnv, 10)
+        : diagramStyle === "infographic-charts"
+          ? 8192
+          : undefined
+
     const result = streamText({
         model,
         abortSignal: req.signal,
-        ...(process.env.MAX_OUTPUT_TOKENS && {
-            maxOutputTokens: parseInt(process.env.MAX_OUTPUT_TOKENS, 10),
-        }),
+        ...(maxOutputTokens !== undefined && { maxOutputTokens }),
         stopWhen: stepCountIs(5),
         // Repair truncated tool calls when maxOutputTokens is reached mid-JSON
         experimental_repairToolCall: async ({ toolCall, error }) => {

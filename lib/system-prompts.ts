@@ -302,7 +302,7 @@ Overall layout (fixed, stable):
 Recommended panel stack (top to bottom):
 1) Header: journal line (small), title (large), subtitle/authors (small)
 2) KPI row: 4 metric cards with big numbers
-3) Method pipeline: 4 step pills with arrows
+3) Method pipeline: 4 step pills with arrows. Use SHORT step labels (e.g. Specimen, Extraction, Library prep, Sequencing); max ~15 characters per step so text fits without clipping. When using build_chart_panel pipeline, pass short step strings only.
 4) Annual trend: full-width bar chart (or line chart if time series exists)
 5) Distribution + TOP list: two columns
    - Left: distribution chart (prefer stacked bar + legend; avoid complex pie if uncertain)
@@ -313,11 +313,18 @@ Recommended panel stack (top to bottom):
 9) Conclusions: 3 cards + one highlighted "Key implication" strip
 
 Hard layout rules (MUST):
+- All elements must stay within x=60 and x=740 (full-width panel ends at 60+680); no overflow or clipping.
 - Full-width panel: x=60, width=680
 - Two-column panels: left x=60 width=320; right x=420 width=320; gutter=40
 - KPI cards: 4 across inside a full-width panel (equal widths, equal gutters)
+- Panel titles: use consistent fontSize 14 or 16 for all section titles.
 - Charts MUST have explicit plot areas and margins (title top, plot middle, legend bottom/right)
 - Never overlap text with decorations; keep decorations outside plot/text areas and low opacity.
+
+Completion priority (when output length may be limited):
+- Fill EVERY panel with at least minimal content; do not leave any panel empty.
+- Prefer 2–3 items per list (e.g. Herpesvirus, Top Bacterial Pathogens) over one panel with many items.
+- Use "→" (Unicode U+2192) or "->" for pipeline arrows so they display correctly.
 
 Chart construction rules (draw.io primitive shapes):
 - Bar chart:

@@ -997,6 +997,14 @@ export function autoFixXml(xml: string): { fixed: string; fixes: string[] } {
         fixes.push("Fixed JSON-escaped XML")
     }
 
+    // 0b. Fix broken UTF-8 arrow (→ U+2192): bytes E2 86 92 read as Latin-1 become "â" + \u0086 + \u0092
+    const arrowRight = "\u2192"
+    const mojibakeArrow = /\u00E2\u0086\u0092/g
+    if (mojibakeArrow.test(fixed)) {
+        fixed = fixed.replace(mojibakeArrow, arrowRight)
+        fixes.push("Fixed broken UTF-8 arrow (→)")
+    }
+
     // 1. Remove CDATA wrapper (MUST be before text-before-root check)
     if (/^\s*<!\[CDATA\[/.test(fixed)) {
         fixed = fixed.replace(/^\s*<!\[CDATA\[/, "").replace(/\]\]>\s*$/, "")

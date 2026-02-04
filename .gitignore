@@ -12,6 +12,10 @@ packages/*/dist
 !.yarn/releases
 !.yarn/versions
 
+# test script outputs
+test-infographic-charts-result.txt
+test-infographic-charts-result.drawio
+
 # testing
 /coverage
 /playwright-report/

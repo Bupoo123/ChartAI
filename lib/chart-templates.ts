@@ -324,15 +324,27 @@ function buildTopList(input: Extract<ChartPanelInput, { type: "top-list" }>) {
     return cells.join("\n")
 }
 
+const MAX_PIPELINE_STEP_CHARS = 18
+const MIN_PIPELINE_PILL_WIDTH = 100
+
 function buildPipeline(input: Extract<ChartPanelInput, { type: "pipeline" }>) {
     const height = input.height ?? 100
     const padding = 16
     const titleHeight = input.title ? 24 : 0
     const steps = input.steps.slice(0, 6)
-    const gap = 10
-    const pillWidth =
+    let gap = 10
+    let pillWidth =
         (input.width - padding * 2 - gap * (steps.length - 1)) /
         Math.max(1, steps.length)
+    pillWidth = Math.max(pillWidth, MIN_PIPELINE_PILL_WIDTH)
+    const totalWidth =
+        padding * 2 + steps.length * pillWidth + (steps.length - 1) * gap
+    if (totalWidth > input.width) {
+        gap = 6
+        pillWidth =
+            (input.width - padding * 2 - gap * (steps.length - 1)) /
+            Math.max(1, steps.length)
+    }
     const pillHeight = Math.max(34, height - padding * 2 - titleHeight)
 
     const cells: string[] = []
@@ -342,11 +354,15 @@ function buildPipeline(input: Extract<ChartPanelInput, { type: "pipeline" }>) {
     }
 
     steps.forEach((step, index) => {
+        const label =
+            step.length > MAX_PIPELINE_STEP_CHARS
+                ? step.slice(0, 15).trim() + "\u2026"
+                : step
         const pillX = input.x + padding + index * (pillWidth + gap)
         const pillY = input.y + padding + titleHeight
         cells.push(
             createCell({
-                value: step,
+                value: label,
                 style: "rounded=1;arcSize=18;fillColor=#EAF6FF;strokeColor=#8CBEE8;strokeWidth=1;fontColor=#0B2A3C;fontSize=12;whiteSpace=wrap;html=1;align=center;verticalAlign=middle;",
                 x: pillX,
                 y: pillY,
