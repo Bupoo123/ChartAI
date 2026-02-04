@@ -66,8 +66,20 @@ interface SettingsDialogProps {
     onToggleDrawioUi: () => void
     darkMode: boolean
     onToggleDarkMode: () => void
-    minimalStyle?: boolean
-    onMinimalStyleChange?: (value: boolean) => void
+    diagramStyle?:
+        | "styled"
+        | "minimal"
+        | "infographic-blue"
+        | "infographic-charts"
+        | "infographic-pink"
+    onDiagramStyleChange?: (
+        value:
+            | "styled"
+            | "minimal"
+            | "infographic-blue"
+            | "infographic-charts"
+            | "infographic-pink",
+    ) => void
     vlmValidationEnabled?: boolean
     onVlmValidationChange?: (value: boolean) => void
     onOpenModelConfig?: () => void
@@ -90,8 +102,8 @@ function SettingsContent({
     onToggleDrawioUi,
     darkMode,
     onToggleDarkMode,
-    minimalStyle = false,
-    onMinimalStyleChange = () => {},
+    diagramStyle = "styled",
+    onDiagramStyleChange = () => {},
     vlmValidationEnabled = false,
     onVlmValidationChange = () => {},
     onOpenModelConfig,
@@ -424,18 +436,40 @@ function SettingsContent({
                         label={dict.settings.diagramStyle}
                         description={dict.settings.diagramStyleDescription}
                     >
-                        <div className="flex items-center gap-2">
-                            <Switch
-                                id="minimal-style"
-                                checked={minimalStyle}
-                                onCheckedChange={onMinimalStyleChange}
-                            />
-                            <span className="text-sm text-muted-foreground">
-                                {minimalStyle
-                                    ? dict.chat.minimalStyle
-                                    : dict.chat.styledMode}
-                            </span>
-                        </div>
+                        <Select
+                            value={diagramStyle}
+                            onValueChange={(value) =>
+                                onDiagramStyleChange(
+                                    value as
+                                        | "styled"
+                                        | "minimal"
+                                        | "infographic-blue"
+                                        | "infographic-charts"
+                                        | "infographic-pink",
+                                )
+                            }
+                        >
+                            <SelectTrigger className="w-[180px] h-9 rounded-xl">
+                                <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="styled">
+                                    {dict.settings.diagramStyleStyled}
+                                </SelectItem>
+                                <SelectItem value="minimal">
+                                    {dict.settings.diagramStyleMinimal}
+                                </SelectItem>
+                                <SelectItem value="infographic-blue">
+                                    {dict.settings.diagramStyleInfographicBlue}
+                                </SelectItem>
+                                <SelectItem value="infographic-charts">
+                                    {
+                                        dict.settings
+                                            .diagramStyleInfographicCharts
+                                    }
+                                </SelectItem>
+                            </SelectContent>
+                        </Select>
                     </SettingItem>
 
                     {/* VLM Diagram Validation */}

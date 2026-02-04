@@ -50,6 +50,13 @@ const STORAGE_SESSION_ID_KEY = "next-ai-draw-io-session-id"
 // sessionStorage keys
 const SESSION_STORAGE_INPUT_KEY = "next-ai-draw-io-input"
 
+type DiagramStyle =
+    | "styled"
+    | "minimal"
+    | "infographic-blue"
+    | "infographic-charts"
+    | "infographic-pink" // legacy
+
 // Type for message parts (tool calls and their states)
 interface MessagePart {
     type: string
@@ -178,7 +185,7 @@ export default function ChatPanel({
     const [dailyRequestLimit, setDailyRequestLimit] = useState(0)
     const [dailyTokenLimit, setDailyTokenLimit] = useState(0)
     const [tpmLimit, setTpmLimit] = useState(0)
-    const [minimalStyle, setMinimalStyle] = useState(false)
+    const [diagramStyle, setDiagramStyle] = useState<DiagramStyle>("styled")
     const [vlmValidationEnabled, setVlmValidationEnabled] = useState(false)
     const [shouldFocusInput, setShouldFocusInput] = useState(false)
 
@@ -187,6 +194,27 @@ export default function ChatPanel({
         const savedInput = sessionStorage.getItem(SESSION_STORAGE_INPUT_KEY)
         if (savedInput) {
             setInput(savedInput)
+        }
+    }, [])
+
+    // Load diagram style setting from localStorage on mount
+    useEffect(() => {
+        if (typeof window === "undefined") return
+        const stored = localStorage.getItem(STORAGE_KEYS.diagramStyle)
+        if (!stored) return
+        if (stored === "infographic-pink") {
+            // migrate legacy preset to new blue preset
+            setDiagramStyle("infographic-blue")
+            localStorage.setItem(STORAGE_KEYS.diagramStyle, "infographic-blue")
+            return
+        }
+        if (
+            stored === "styled" ||
+            stored === "minimal" ||
+            stored === "infographic-blue" ||
+            stored === "infographic-charts"
+        ) {
+            setDiagramStyle(stored)
         }
     }, [])
 
@@ -338,6 +366,7 @@ export default function ChatPanel({
         enableVlmValidation: vlmValidationEnabled,
         sessionId,
         onValidationStateChange: handleValidationStateChange,
+        diagramStyle,
     })
 
     const {
@@ -1020,6 +1049,26 @@ export default function ChatPanel({
         stop()
     }, [messages, addToolOutput, stop])
 
+    const minimalStyle = diagramStyle === "minimal"
+    const diagramStylePreset =
+        diagramStyle === "infographic-blue" ||
+        diagramStyle === "infographic-charts" ||
+        diagramStyle === "infographic-pink"
+            ? diagramStyle === "infographic-charts"
+                ? "infographic-charts"
+                : "infographic-blue"
+            : "default"
+
+    const handleDiagramStyleChange = useCallback(
+        (value: DiagramStyle) => {
+            setDiagramStyle(value)
+            if (typeof window !== "undefined") {
+                localStorage.setItem(STORAGE_KEYS.diagramStyle, value)
+            }
+        },
+        [setDiagramStyle],
+    )
+
     // Send chat message with headers
     const sendChatMessage = (
         parts: any,
@@ -1075,6 +1124,9 @@ export default function ChatPanel({
                     ...(minimalStyle && {
                         "x-minimal-style": "true",
                     }),
+                    ...(diagramStylePreset !== "default" && {
+                        "x-diagram-style": diagramStylePreset,
+                    }),
                 },
             },
         )
@@ -1089,17 +1141,47 @@ export default function ChatPanel({
         urlDataParam?: Map<string, UrlData>,
     ): Promise<string> => {
         let userText = baseText
+        const chartTrimLimit = Number(
+            process.env.NEXT_PUBLIC_CHART_TRIM_CHARS || 0,
+        )
+
+        const trimForCharts = (text: string): string => {
+            const lower = text.toLowerCase()
+            const abstractIndex = Math.max(
+                lower.indexOf("abstract"),
+                lower.indexOf("摘要"),
+            )
+            const startIndex = abstractIndex >= 0 ? abstractIndex : 0
+            const sliced = text.slice(startIndex)
+            const truncated =
+                chartTrimLimit > 0 && sliced.length > chartTrimLimit
+                    ? `${sliced.slice(0, chartTrimLimit)}\n\n[为图表模板已截断]`
+                    : sliced
+            return truncated
+        }
 
         for (const file of files) {
             if (isPdfFile(file)) {
                 const extracted = pdfData.get(file)
                 if (extracted?.text) {
-                    userText += `\n\n[PDF: ${file.name}]\n${extracted.text}`
+                    const content =
+                        diagramStyle === "infographic-charts" &&
+                        chartTrimLimit > 0 &&
+                        extracted.text.length > chartTrimLimit
+                            ? trimForCharts(extracted.text)
+                            : extracted.text
+                    userText += `\n\n[PDF: ${file.name}]\n${content}`
                 }
             } else if (isTextFile(file)) {
                 const extracted = pdfData.get(file)
                 if (extracted?.text) {
-                    userText += `\n\n[File: ${file.name}]\n${extracted.text}`
+                    const content =
+                        diagramStyle === "infographic-charts" &&
+                        chartTrimLimit > 0 &&
+                        extracted.text.length > chartTrimLimit
+                            ? trimForCharts(extracted.text)
+                            : extracted.text
+                    userText += `\n\n[File: ${file.name}]\n${content}`
                 }
             } else if (imageParts) {
                 // Handle as image (only if imageParts array provided)
@@ -1410,8 +1492,8 @@ export default function ChatPanel({
                 onToggleDrawioUi={onToggleDrawioUi}
                 darkMode={darkMode}
                 onToggleDarkMode={onToggleDarkMode}
-                minimalStyle={minimalStyle}
-                onMinimalStyleChange={setMinimalStyle}
+                diagramStyle={diagramStyle}
+                onDiagramStyleChange={handleDiagramStyleChange}
                 vlmValidationEnabled={vlmValidationEnabled}
                 onVlmValidationChange={handleVlmValidationChange}
                 onOpenModelConfig={() => setShowModelConfigDialog(true)}

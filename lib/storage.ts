@@ -27,4 +27,7 @@ export const STORAGE_KEYS = {
 
     // Diagram validation
     vlmValidationEnabled: "next-ai-draw-io-vlm-validation-enabled",
+
+    // Diagram style preset
+    diagramStyle: "next-ai-draw-io-diagram-style",
 } as const

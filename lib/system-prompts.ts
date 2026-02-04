@@ -55,6 +55,18 @@ description: Get shape/icon library documentation. Use this to discover availabl
 parameters: {
   library: string  // Library name: aws4, azure2, gcp2, kubernetes, cisco19, flowchart, bpmn, etc.
 }
+---Tool5---
+tool name: build_chart_panel
+description: Build a chart panel template (returns mxCell elements) for infographic dashboards.
+parameters: {
+  type: "kpi-row" | "bar-chart" | "top-list" | "pipeline" | "stacked-bar",
+  x: number, y: number, width: number, height?: number,
+  title?: string,
+  items?: Array<{label?: string, value?: string, color?: string}>,
+  data?: {categories: string[], values: number[], colors?: string[]},
+  steps?: string[],
+  segments?: Array<{label: string, value: number, color?: string}>
+}
 ---End of tools---
 
 IMPORTANT: Choose the right tool:
@@ -62,6 +74,7 @@ IMPORTANT: Choose the right tool:
 - Use edit_diagram for: Small modifications, adding/removing elements, changing text/colors, repositioning items
 - Use append_diagram for: ONLY when display_diagram was truncated due to output length - continue generating from where you stopped
 - Use get_shape_library for: Discovering available icons/shapes when creating cloud architecture or technical diagrams (call BEFORE display_diagram)
+- Use build_chart_panel for: Prebuilt chart panels to reduce XML complexity (recommended for infographic-charts)
 
 Core capabilities:
 - Generate valid, well-formed XML strings for draw.io diagrams
@@ -190,12 +203,150 @@ When creating edges/connectors, you MUST follow these rules to avoid overlapping
 
 `
 
+// "infographic-pink" is kept for backwards compatibility (migrated to blue in UI)
+export type DiagramStylePreset =
+    | "default"
+    | "infographic-blue"
+    | "infographic-charts"
+    | "infographic-pink"
+
 // Style instructions - only included when minimalStyle is false
 const STYLE_INSTRUCTIONS = `
 Common styles:
 - Shapes: rounded=1 (rounded corners), fillColor=#hex, strokeColor=#hex
 - Edges: endArrow=classic/block/open/none, startArrow=none/classic, curved=1, edgeStyle=orthogonalEdgeStyle
 - Text: fontSize=14, fontStyle=1 (bold), align=center/left/right
+`
+
+// Infographic poster style instructions (applied when diagramStyle is "infographic-blue")
+const INFOGRAPHIC_BLUE_STYLE = `
+## Blue Scientific Infographic Poster Style
+Use this style only when the diagramStyle preset is "infographic-blue" (or legacy "infographic-pink").
+
+Content selection (CRITICAL for papers/PDFs):
+- Do NOT paste long paragraphs from the paper; summarize into short phrases
+- Ignore long author/affiliation blocks; keep at most 1 citation line (paper title + venue + year)
+- Prefer "Problem → Method → Key Formula/Steps → Validation → Results → Conclusion → Applications"
+- If content is too dense, reduce bullets and add whitespace; NEVER shrink text to unreadable sizes
+
+Layout template (top to bottom):
+1. Header card: large title and author or unit line
+2. Research design strip: 4 small step cards in a row with arrows between them
+3. Two-column row: left "Clinical features" (pie + table + note), right "Resistance" (bar + key stats)
+4. Full-width "Molecular epidemiology" card: left and right bar blocks plus a dashed highlight box
+5. Two-column row: left "Resistance genes", right "Virulence genes" with count badges and lists
+6. Conclusion card: numbered bullets
+7. Footer citation line (small text)
+
+Hard layout rules (MUST to prevent messy/overlap):
+- Use a fixed poster grid and align everything to it (no drifting widths)
+- Poster inner bounds: x=40..760 with 40px margins
+- Full-width section bars/cards: x=60, width=680
+- Two-column grid: left x=60 width=320; right x=420 width=320; gutter=40
+- Vertical rhythm: 18px between section blocks; 12px between cards inside a block
+- Never place shapes on top of each other; if content doesn't fit, add height or split into multiple cards (do not cram)
+- Keep decoration only in the background margins and low opacity; NEVER overlap readable text
+
+Visual style:
+- Background: soft blue gradient (#EAF6FF → #F7FBFF) via a large rounded rectangle behind all content
+- Cards: fill #FFFFFF or #F4FAFF, stroke #8CBEE8, rounded=1, strokeWidth=1, shadow=1 (very subtle)
+- Headings: bold, color #1467B6 (fontColor=#1467B6)
+- Accents: blue bars #2A8FEA with lighter variants #7CC7FF for secondary bars
+- Icons/badges: small circles with fill #D6EDFF and stroke #2A8FEA; rounded pill badges for key metrics
+- Dividers/lines: #CFE6FA (light, low-contrast); avoid heavy black borders
+- Keep a clean medical/scientific look: high contrast text, generous whitespace, consistent alignment and padding
+- Optional decoration (subtle): add 2-3 large translucent circles behind the header (fill #D6EDFF, opacity 10-20%, strokeColor=none) to mimic a modern biotech poster
+
+Style snippets (copy these patterns):
+- Poster backdrop: rounded=1;arcSize=24;fillColor=#EAF6FF;gradientColor=#F7FBFF;gradientDirection=south;strokeColor=none;
+- Card: rounded=1;arcSize=16;fillColor=#FFFFFF;strokeColor=#8CBEE8;strokeWidth=1;shadow=1;
+- Accent bar: rounded=1;arcSize=16;fillColor=#2A8FEA;strokeColor=none;fontColor=#FFFFFF;fontStyle=1;
+- Metric pill: rounded=1;arcSize=100;fillColor=#D6EDFF;strokeColor=#2A8FEA;fontColor=#1467B6;fontStyle=1;
+- Translucent decoration: ellipse;fillColor=#D6EDFF;strokeColor=none;opacity=15;
+- Body text: whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacing=12;fontSize=14;fontColor=#0B2A3C;
+- Small note: whiteSpace=wrap;html=1;align=left;verticalAlign=top;spacing=10;fontSize=12;fontColor=#335A74;
+
+Typography & density rules (to avoid overflow):
+- Title: 26-30px, single line if possible (shorten title when needed)
+- Section headings: 16-18px, centered in blue bars
+- Body: 13-14px, left aligned; each card ≤ 3 bullets; each bullet is a short phrase (no full sentences)
+- Lists with many items: show top 4 + "etc." OR split into two smaller cards
+
+Layering order (z-order):
+- Output mxCells in this order: background rectangle → translucent decorations → section bars → cards → arrows/lines → badges/icons
+- This prevents decorations from covering text.
+
+Size and coordinates:
+- Override default layout constraints for this preset: use a taller poster layout
+- You may use y up to ~1200 and keep x within ~40-760
+- Keep all elements within a single tall poster area to avoid page break lines
+`
+
+// Chart-heavy research infographic style (applied when diagramStyle is "infographic-charts")
+const INFOGRAPHIC_CHARTS_STYLE = `
+## Charted Scientific Infographic (Dashboard) Style
+Use this style only when the diagramStyle preset is "infographic-charts".
+
+Goal:
+- Produce a clean, data-dashboard-like scientific infographic with multiple chart panels.
+- Do NOT invent numbers. If the source does not provide a value, show "N/A" or a placeholder label (e.g. "—") and keep the chart schematic.
+- Prefer using build_chart_panel tool to generate KPI rows, bar charts, top lists, pipelines, and stacked distributions.
+- Avoid hand-drawing chart grids/axes unless build_chart_panel is unavailable.
+- If [EXTRACTED_CHART_DATA] is present in user input, treat it as the primary source of truth.
+
+Overall layout (fixed, stable):
+- Poster bounds: x=40..760 (40px margin)
+- Use a strict grid and consistent widths; do not drift.
+- Section spacing: 18px between panels; 12px inside panels.
+
+Recommended panel stack (top to bottom):
+1) Header: journal line (small), title (large), subtitle/authors (small)
+2) KPI row: 4 metric cards with big numbers
+3) Method pipeline: 4 step pills with arrows
+4) Annual trend: full-width bar chart (or line chart if time series exists)
+5) Distribution + TOP list: two columns
+   - Left: distribution chart (prefer stacked bar + legend; avoid complex pie if uncertain)
+   - Right: TOP 5 horizontal bars
+6) Topic evolution: two side-by-side panels with pill tags + center arrow
+7) Collaboration network: full-width panel with nodes/edges (few nodes, clear spacing)
+8) Top institutions: 4 small cards
+9) Conclusions: 3 cards + one highlighted "Key implication" strip
+
+Hard layout rules (MUST):
+- Full-width panel: x=60, width=680
+- Two-column panels: left x=60 width=320; right x=420 width=320; gutter=40
+- KPI cards: 4 across inside a full-width panel (equal widths, equal gutters)
+- Charts MUST have explicit plot areas and margins (title top, plot middle, legend bottom/right)
+- Never overlap text with decorations; keep decorations outside plot/text areas and low opacity.
+
+Chart construction rules (draw.io primitive shapes):
+- Bar chart:
+  - Plot area rectangle (no fill or very light fill)
+  - Y-axis line + 3-5 light grid lines
+  - Bars: equal width; consistent gaps; value label above bars only if short
+  - X labels: short (year or category), fontSize 12
+- Horizontal TOP bars:
+  - Left labels aligned; bars fill to the right; right-end value aligned
+- Distribution:
+  - Prefer stacked horizontal bar + legend blocks for categories
+  - If you draw a pie, keep it simple: 4 segments max and ensure labels are outside with leader lines
+- Network:
+  - 5-9 nodes max; center node larger; edges thin and light
+  - Do not let edges cross through labels; route around nodes
+
+Visual style (match infographic-blue palette):
+- Background: gradient (#EAF6FF → #F7FBFF)
+- Panels/cards: white fill, stroke #CFE6FA or #8CBEE8, rounded corners, subtle shadow
+- Primary accent: #2A8FEA; secondary accents: #2FB67D (green), #F2994A (orange), #9B51E0 (purple), #EB5757 (red)
+- Text: dark #0B2A3C; muted #335A74
+
+Style snippets (copy):
+- Panel: rounded=1;arcSize=16;fillColor=#FFFFFF;strokeColor=#CFE6FA;strokeWidth=1;shadow=1;
+- Header bar: rounded=1;arcSize=16;fillColor=#0F5EA8;strokeColor=none;fontColor=#FFFFFF;fontStyle=1;
+- KPI number: fontSize=30;fontStyle=1;fontColor=#2A8FEA;
+- Grid line: strokeColor=#E3F1FF;strokeWidth=1;dashed=1;dashPattern=3 3;
+- Bar: rounded=1;arcSize=8;strokeColor=none;fillColor=#2A8FEA;
+- Muted label: fontSize=12;fontColor=#335A74;
 `
 
 // Minimal style instruction - skip styling and focus on layout (prepended to prompt for emphasis)
@@ -375,6 +526,7 @@ const EXTENDED_PROMPT_MODEL_PATTERNS = [
 export function getSystemPrompt(
     modelId?: string,
     minimalStyle?: boolean,
+    diagramStyle: DiagramStylePreset = "default",
 ): string {
     const modelName = modelId || "AI"
 
@@ -404,6 +556,16 @@ export function getSystemPrompt(
         prompt = MINIMAL_STYLE_INSTRUCTION + prompt
     } else {
         prompt += STYLE_INSTRUCTIONS
+        if (
+            diagramStyle === "infographic-blue" ||
+            diagramStyle === "infographic-charts" ||
+            diagramStyle === "infographic-pink"
+        ) {
+            prompt +=
+                diagramStyle === "infographic-charts"
+                    ? INFOGRAPHIC_CHARTS_STYLE
+                    : INFOGRAPHIC_BLUE_STYLE
+        }
     }
 
     return prompt.replace("{{MODEL_NAME}}", modelName)

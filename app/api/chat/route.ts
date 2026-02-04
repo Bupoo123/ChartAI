@@ -1,8 +1,10 @@
+import { createDeepSeek, deepseek } from "@ai-sdk/deepseek"
 import {
     APICallError,
     convertToModelMessages,
     createUIMessageStream,
     createUIMessageStreamResponse,
+    generateText,
     InvalidToolInputError,
     LoadAPIKeyError,
     stepCountIs,
@@ -18,6 +20,7 @@ import {
     supportsPromptCaching,
 } from "@/lib/ai-providers"
 import { findCachedResponse } from "@/lib/cached-responses"
+import { buildChartPanelXml } from "@/lib/chart-templates"
 import {
     isMinimalDiagram,
     replaceHistoricalToolInputs,
@@ -35,7 +38,7 @@ import {
     wrapWithObserve,
 } from "@/lib/langfuse"
 import { findServerModelById } from "@/lib/server-model-config"
-import { getSystemPrompt } from "@/lib/system-prompts"
+import { type DiagramStylePreset, getSystemPrompt } from "@/lib/system-prompts"
 import { getUserIdFromRequest } from "@/lib/user-id"
 
 export const maxDuration = 120
@@ -105,7 +108,7 @@ async function handleChatRequest(req: Request): Promise<Response> {
     const lastUserMessage = [...messages]
         .reverse()
         .find((m: any) => m.role === "user")
-    const userInputText =
+    let userInputText =
         lastUserMessage?.parts?.find((p: any) => p.type === "text")?.text || ""
 
     // Update Langfuse trace with input, session, and user
@@ -227,8 +230,15 @@ async function handleChatRequest(req: Request): Promise<Response> {
             }),
     }
 
-    // Read minimal style preference from header
+    // Read diagram style preference from headers
     const minimalStyle = req.headers.get("x-minimal-style") === "true"
+    const diagramStyleHeader = req.headers.get("x-diagram-style")
+    const diagramStyle: DiagramStylePreset =
+        diagramStyleHeader === "infographic-blue" ||
+        diagramStyleHeader === "infographic-charts" ||
+        diagramStyleHeader === "infographic-pink"
+            ? diagramStyleHeader
+            : "default"
 
     console.log(
         `[Client Overrides] provider: ${clientOverrides.provider}, modelId: ${clientOverrides.modelId}`,
@@ -244,8 +254,41 @@ async function handleChatRequest(req: Request): Promise<Response> {
         `[Prompt Caching] ${shouldCache ? "ENABLED" : "DISABLED"} for model: ${modelId}`,
     )
 
+    // If chart-style preset, pre-extract chart data using DeepSeek (when available)
+    if (diagramStyle === "infographic-charts" && userInputText) {
+        const sourceText = extractSourceContent(userInputText)
+        const deepseekApiKey =
+            process.env.DEEPSEEK_API_KEY ||
+            (req.headers.get("x-ai-provider") === "deepseek"
+                ? req.headers.get("x-ai-api-key") || undefined
+                : undefined)
+        const deepseekBaseUrl =
+            process.env.DEEPSEEK_BASE_URL ||
+            (req.headers.get("x-ai-provider") === "deepseek"
+                ? req.headers.get("x-ai-base-url") || undefined
+                : undefined)
+
+        try {
+            const extracted = await extractChartDataWithDeepSeek(
+                sourceText,
+                deepseekApiKey || undefined,
+                deepseekBaseUrl || undefined,
+            )
+            if (extracted) {
+                const baseText = stripSourceBlocks(userInputText)
+                userInputText =
+                    `${baseText}\n\n[EXTRACTED_CHART_DATA]\n${extracted}`.trim()
+            }
+        } catch (error) {
+            console.warn(
+                "[chart-extract] DeepSeek extraction failed, continuing without it.",
+                error,
+            )
+        }
+    }
+
     // Get the appropriate system prompt based on model (extended for Opus/Haiku 4.5)
-    const systemMessage = getSystemPrompt(modelId, minimalStyle)
+    const systemMessage = getSystemPrompt(modelId, minimalStyle, diagramStyle)
 
     // Extract file parts (images) from the last user message
     const fileParts =
@@ -718,6 +761,158 @@ Call this tool to get shape names and usage syntax for a specific library.`,
                     }
                 },
             },
+            build_chart_panel: {
+                description: `Build a chart panel template (returns mxCell elements) for infographic dashboards.
+
+Available types:
+- kpi-row: KPI cards row
+- bar-chart: simple vertical bar chart
+- top-list: horizontal top list bars
+- pipeline: step pills with arrows
+- stacked-bar: stacked distribution bar + legend
+
+Return value: raw mxCell elements ONLY (no wrapper tags).`,
+                inputSchema: z.object({
+                    type: z.enum([
+                        "kpi-row",
+                        "bar-chart",
+                        "top-list",
+                        "pipeline",
+                        "stacked-bar",
+                    ]),
+                    x: z.number(),
+                    y: z.number(),
+                    width: z.number(),
+                    height: z.number().optional(),
+                    title: z.string().optional(),
+                    items: z
+                        .array(
+                            z.object({
+                                label: z.string().optional(),
+                                value: z.string().optional(),
+                                color: z.string().optional(),
+                            }),
+                        )
+                        .optional(),
+                    data: z
+                        .object({
+                            categories: z.array(z.string()),
+                            values: z.array(z.number()),
+                            colors: z.array(z.string()).optional(),
+                        })
+                        .optional(),
+                    steps: z.array(z.string()).optional(),
+                    segments: z
+                        .array(
+                            z.object({
+                                label: z.string(),
+                                value: z.number(),
+                                color: z.string().optional(),
+                            }),
+                        )
+                        .optional(),
+                }),
+                execute: async (input) => {
+                    switch (input.type) {
+                        case "kpi-row": {
+                            if (!input.items || input.items.length === 0) {
+                                throw new Error("kpi-row requires items (1-5).")
+                            }
+                            return buildChartPanelXml({
+                                type: "kpi-row",
+                                x: input.x,
+                                y: input.y,
+                                width: input.width,
+                                height: input.height,
+                                title: input.title,
+                                items: input.items.slice(0, 5),
+                            })
+                        }
+                        case "bar-chart": {
+                            if (!input.data) {
+                                throw new Error("bar-chart requires data.")
+                            }
+                            return buildChartPanelXml({
+                                type: "bar-chart",
+                                x: input.x,
+                                y: input.y,
+                                width: input.width,
+                                height: input.height,
+                                title: input.title,
+                                data: input.data,
+                            })
+                        }
+                        case "top-list": {
+                            if (!input.items || input.items.length === 0) {
+                                throw new Error(
+                                    "top-list requires items (1-6).",
+                                )
+                            }
+                            const items = input.items as Array<{
+                                label?: string
+                                value?: string
+                                color?: string
+                            }>
+                            return buildChartPanelXml({
+                                type: "top-list",
+                                x: input.x,
+                                y: input.y,
+                                width: input.width,
+                                height: input.height,
+                                title: input.title,
+                                items: items.slice(0, 6).map((item) => ({
+                                    label: item.label || "",
+                                    value: Number(item.value ?? 0),
+                                    color: item.color,
+                                })),
+                            })
+                        }
+                        case "pipeline": {
+                            if (!input.steps || input.steps.length < 2) {
+                                throw new Error(
+                                    "pipeline requires steps (2-6).",
+                                )
+                            }
+                            return buildChartPanelXml({
+                                type: "pipeline",
+                                x: input.x,
+                                y: input.y,
+                                width: input.width,
+                                height: input.height,
+                                title: input.title,
+                                steps: input.steps.slice(0, 6),
+                            })
+                        }
+                        case "stacked-bar": {
+                            if (!input.segments || input.segments.length < 2) {
+                                throw new Error(
+                                    "stacked-bar requires segments (2-6).",
+                                )
+                            }
+                            const segments = input.segments as Array<{
+                                label: string
+                                value: number
+                                color?: string
+                            }>
+                            return buildChartPanelXml({
+                                type: "stacked-bar",
+                                x: input.x,
+                                y: input.y,
+                                width: input.width,
+                                height: input.height,
+                                title: input.title,
+                                segments: segments
+                                    .slice(0, 6)
+                                    .map((segment) => ({
+                                        label: segment.label,
+                                        value: segment.value,
+                                        color: segment.color,
+                                    })),
+                            })
+                        }
+                    }
+                },
+            },
         },
         ...(process.env.TEMPERATURE !== undefined && {
             temperature: parseFloat(process.env.TEMPERATURE),
@@ -816,4 +1011,72 @@ const observedHandler = wrapWithObserve(safeHandler)
 
 export async function POST(req: Request) {
     return observedHandler(req)
+}
+function extractSourceContent(userText: string): string {
+    const blocks: string[] = []
+    const pattern =
+        /\[(PDF|File|URL):[^\]]+\]\n([\s\S]*?)(?=\n\[(PDF|File|URL):|\n\[|$)/g
+    let match: RegExpExecArray | null
+    while ((match = pattern.exec(userText)) !== null) {
+        blocks.push(match[2])
+    }
+    if (blocks.length === 0) return userText
+    return blocks.join("\n\n")
+}
+
+function stripSourceBlocks(userText: string): string {
+    const pattern =
+        /\[(PDF|File|URL):[^\]]+\]\n[\s\S]*?(?=\n\[(PDF|File|URL):|\n\[|$)/g
+    return userText.replace(pattern, "").trim()
+}
+
+async function extractChartDataWithDeepSeek(
+    sourceText: string,
+    apiKey?: string,
+    baseUrl?: string,
+): Promise<string | null> {
+    if (!apiKey) return null
+    const provider = baseUrl
+        ? createDeepSeek({ apiKey, baseURL: baseUrl })
+        : null
+    const model = provider
+        ? provider("deepseek-chat")
+        : deepseek("deepseek-chat")
+    const prompt = `You are a research assistant. Extract ONLY the most important chart-ready facts from the paper text below.
+Return strict JSON only. Do not include markdown or extra text.
+
+JSON schema:
+{
+  "title": string,
+  "citation": string,
+  "kpis": [{"label": string, "value": string}],
+  "pipeline": [string],
+  "trend": {"categories": [string], "values": [number]},
+  "topList": [{"label": string, "value": number}],
+  "distribution": [{"label": string, "value": number}],
+  "conclusions": [string]
+}
+
+Rules:
+- Use short labels.
+- If data is missing, use empty arrays.
+- Do NOT invent numbers.
+
+Paper text:
+${sourceText}`
+
+    const { text } = await generateText({
+        model,
+        prompt,
+        maxOutputTokens: 900,
+        temperature: 0.2,
+    })
+
+    try {
+        const repaired = jsonrepair(text.trim())
+        JSON.parse(repaired)
+        return repaired
+    } catch {
+        return null
+    }
 }

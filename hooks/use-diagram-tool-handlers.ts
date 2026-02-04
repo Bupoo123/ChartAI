@@ -5,6 +5,7 @@ import type {
     ValidationState,
     ValidationStatus,
 } from "@/components/chat/ValidationCard"
+import { reflowInfographicChartsXml } from "@/lib/diagram-layout"
 import type { ValidationResult } from "@/lib/diagram-validator"
 import { formatValidationFeedback } from "@/lib/diagram-validator"
 import { autoFixXml, isMxCellXmlComplete, wrapWithMxFile } from "@/lib/utils"
@@ -60,6 +61,12 @@ interface UseDiagramToolHandlersParams {
         toolCallId: string,
         state: ValidationState,
     ) => void
+    diagramStyle?:
+        | "styled"
+        | "minimal"
+        | "infographic-blue"
+        | "infographic-charts"
+        | "infographic-pink"
 }
 
 /**
@@ -81,6 +88,7 @@ export function useDiagramToolHandlers({
     enableVlmValidation = true,
     sessionId,
     onValidationStateChange,
+    diagramStyle = "styled",
 }: UseDiagramToolHandlersParams) {
     // Track validation retry count per tool call
     const validationRetryCountRef = useRef<Map<string, number>>(new Map())
@@ -172,7 +180,10 @@ NEXT STEP: Call append_diagram with the continuation XML.
         // Complete XML received - validate and fix BEFORE drawing (escape &, <, > etc.)
         partialXmlRef.current = "" // Reset any partial from previous truncation
         const { fixed: fixedXml } = autoFixXml(xml)
-        const finalXml = fixedXml || xml
+        let finalXml = fixedXml || xml
+        if (diagramStyle === "infographic-charts") {
+            finalXml = reflowInfographicChartsXml(finalXml)
+        }
 
         // Wrap raw XML with full mxfile structure for draw.io
         const fullXml = wrapWithMxFile(finalXml)
